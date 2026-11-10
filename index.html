@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#1C9B93" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Moisture Slip Printer - Neeraj</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --primary: #1C9B93;
+      --primary-dark: #167a73;
+      --accent: #ADB5DC;
+      --bg: #f0f4f4;
+      --card: #ffffff;
+      --text: #222;
+      --danger: #e74c3c;
+      --success: #27ae60;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+      min-height: 100vh;
+      padding-bottom: 80px;
+    }
+
+    header {
+      background: var(--primary);
+      color: white;
+      padding: 14px 16px;
+      text-align: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+
+    header h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+    }
+
+    header .subtitle {
+      font-size: 0.8rem;
+      opacity: 0.9;
+      margin-top: 2px;
+    }
+
+    .license-bar {
+      background: var(--accent);
+      color: #222;
+      text-align: center;
+      padding: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .container {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 12px;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 14px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    }
+
+    .card h2 {
+      font-size: 1rem;
+      color: var(--primary);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 4px;
+      color: #444;
+    }
+
+    select, input[type="text"], input[type="number"], input[type="date"], input[type="time"] {
+      width: 100%;
+      padding: 11px 12px;
+      border: 1.5px solid #ddd;
+      border-radius: 8px;
+      font-size: 1rem;
+      background: #fafafa;
+      transition: border-color 0.2s;
+      margin-bottom: 12px;
+    }
+
+    select:focus, input:focus {
+      outline: none;
+      border-color: var(--primary);
+      background: #fff;
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .row > div {
+      flex: 1;
+    }
+
+    .btn-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    button {
+      border: none;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.1s, opacity 0.2s;
+      flex: 1 1 auto;
+      min-width: 120px;
+    }
+
+    button:active {
+      transform: scale(0.97);
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+    }
+
+    .btn-primary:hover { background: var(--primary-dark); }
+
+    .btn-secondary {
+      background: #e8f5f4;
+      color: var(--primary);
+      border: 1px solid var(--primary);
+    }
+
+    .btn-danger {
+      background: #fdecea;
+      color: var(--danger);
+      border: 1px solid var(--danger);
+    }
+
+    .btn-success {
+      background: #eafaf1;
+      color: var(--success);
+      border: 1px solid var(--success);
+    }
+
+    .preview-box {
+      background: #1a1a1a;
+      color: #00ff9c;
+      font-family: "Courier New", Courier, monospace;
+      font-size: 0.82rem;
+      padding: 14px;
+      border-radius: 8px;
+      min-height: 180px;
+      max-height: 340px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      line-height: 1.4;
+      border: 2px solid #333;
+    }
+
+    .slip-count {
+      font-size: 0.8rem;
+      color: #666;
+      margin-bottom: 8px;
+    }
+
+    .info-note {
+      font-size: 0.78rem;
+      color: #666;
+      background: #f8f9fa;
+      padding: 8px 12px;
+      border-radius: 8px;
+      margin-top: 10px;
+      border-left: 3px solid var(--primary);
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #333;
+      color: white;
+      padding: 12px 20px;
+      border-radius: 30px;
+      font-size: 0.9rem;
+      z-index: 999;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+      max-width: 90%;
+      text-align: center;
+    }
+
+    .toast.show {
+      opacity: 1;
+    }
+
+    .hidden { display: none !important; }
+
+    @media (max-width: 480px) {
+      header h1 { font-size: 1.1rem; }
+      .card { padding: 14px; }
+      button { min-width: 100%; }
+      .btn-group { flex-direction: column; }
+      .row { flex-direction: column; gap: 0; }
+    }
+
+    @media print {
+      body * { visibility: hidden; }
+      .preview-box, .preview-box * { visibility: visible; }
+      .preview-box {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        background: white;
+        color: black;
+        border: none;
+        max-height: none;
+      }
+      header, .license-bar, .card:not(.preview-card), .btn-group, .info-note { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Moisture Slip Printer</h1>
+    <div class="subtitle">Mobile & Desktop Friendly</div>
+  </header>
+
+  <div class="license-bar">
+    Mslip Printer licensed to Neeraj
+  </div>
+
+  <div class="container">
+    <div class="card">
+      <h2>📋 Slip Details</h2>
+
+      <label for="variety">Select Variety</label>
+      <select id="variety">
+        <option value="RiceGrA">RiceGrA (RICE-LGrn / 009)</option>
+        <option value="RiceGrCommon">RiceGrCommon (RICE-SGrn / 010)</option>
+        <option value="Parboiled">Parboiled (RICE-PBOILED / 011)</option>
+        <option value="Wheat">Wheat (WHEAT / 013)</option>
+        <option value="PaddyL">PaddyL (PADDY-LGrn / 006)</option>
+        <option value="PaddyS">PaddyS (PADDY-SGrn / 008)</option>
+      </select>
+
+      <div class="row">
+        <div>
+          <label for="date">Date</label>
+          <input type="date" id="date" />
+        </div>
+        <div>
+          <label for="time">Time</label>
+          <input type="time" id="time" step="1" />
+        </div>
+      </div>
+
+      <label for="lot">Lot Number</label>
+      <input type="text" id="lot" placeholder="e.g. 123456" maxlength="12" />
+
+      <div class="row">
+        <div>
+          <label for="temperature">Temperature (°C)</label>
+          <input type="number" id="temperature" step="0.1" placeholder="e.g. 28.5" />
+        </div>
+        <div>
+          <label for="moisture">Moisture (%)</label>
+          <input type="number" id="moisture" step="0.1" placeholder="e.g. 12.3" />
+        </div>
+      </div>
+
+      <div class="btn-group">
+        <button class="btn-primary" onclick="generatePreview()">Generate Preview</button>
+        <button class="btn-secondary" onclick="clearAll()">Clear All</button>
+      </div>
+
+      <div class="info-note">
+        ⏱ Time advances by <strong>1 min 45 sec – 2 min 15 sec</strong> randomly<br>
+        🌡 Temperature increases by ≈ <strong>+0.05 °C</strong> on every Generate
+      </div>
+    </div>
+
+    <div class="card preview-card">
+      <h2>🖨 Preview</h2>
+      <div class="slip-count" id="slipCount">No slips generated yet</div>
+      <div class="preview-box" id="previewBox">Generated slips will appear here...</div>
+
+      <div class="btn-group" style="margin-top: 12px;">
+        <button class="btn-primary" onclick="window.print()">Print</button>
+        <button class="btn-success" onclick="exportExcel()">Save Excel</button>
+        <button class="btn-secondary" onclick="exportJSON()">Save JSON</button>
+        <button class="btn-secondary" onclick="document.getElementById('fileInput').click()">Load File</button>
+        <button class="btn-danger" onclick="deleteLastSlip()">Delete Last</button>
+        <button class="btn-secondary" onclick="copyLatestSlip()">Copy Slip</button>
+      </div>
+
+      <input type="file" id="fileInput" accept=".xlsx,.json,.csv" class="hidden" onchange="loadFile(event)" />
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const STORAGE_KEY = "moisture_slip_printer_v1";
+
+    let allSlips = [];
+    let slipCounter = 0;
+
+    function showToast(msg, duration = 2200) {
+      const t = document.getElementById("toast");
+      t.textContent = msg;
+      t.classList.add("show");
+      setTimeout(() => t.classList.remove("show"), duration);
+    }
+
+    function pad(n, len = 2) {
+      return String(n).padStart(len, "0");
+    }
+
+    function normalizeLotInput(value) {
+      const digits = String(value).replace(/\D/g, "");
+      return digits.length ? pad(digits, 6).slice(-6) : "000000";
+    }
+
+    function setDefaultDateTime() {
+      const now = new Date();
+      document.getElementById("date").value = now.toISOString().split("T")[0];
+      document.getElementById("time").value =
+        pad(now.getHours()) + ":" + pad(now.getMinutes()) + ":" + pad(now.getSeconds());
+    }
+
+    function buildSlipText({ dateStr, timeStr, lot, commodity, code, temp, moist }) {
+      return `<DW>  INDOSAW</DW>
+
+
+DATE      : ${dateStr}
+TIME      : ${timeStr}
+        A#:${lot}
+COMMODITY : ${commodity}
+CODE NUMBER= ${code}
+TEMP(Deg C)= ${temp}
+MOISTURE % = ${moist}
+<LINE>
+<LINE>
+`;
+    }
+
+    function saveSlipsToStorage() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(allSlips));
+      } catch (e) {
+        console.error("Storage failed", e);
+      }
+    }
+
+    function loadSlipsFromStorage() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (!saved) return false;
+
+        const parsed = JSON.parse(saved);
+        if (!Array.isArray(parsed) || parsed.length === 0) return false;
+
+        allSlips = parsed.map((s, index) => ({
+          ...s,
+          slip_no: Number(s.slip_no) || index + 1
+        }));
+
+        slipCounter = Math.max(...allSlips.map(s => Number(s.slip_no) || 0), 0);
+
+        const box = document.getElementById("previewBox");
+        box.textContent = "";
+        allSlips.forEach(s => {
+          box.textContent += (s.raw_text || buildSlipText({
+            dateStr: s.date,
+            timeStr: s.time,
+            lot: s.lot_number || "000000",
+            commodity: s.commodity || "",
+            code: s.code || "",
+            temp: s.temperature || "0.0",
+            moist: s.moisture || "0.0"
+          })) + "\n----------------------------------------\n";
+        });
+
+        updateSlipCount();
+        return true;
+      } catch (e) {
+        console.error("Load failed", e);
+        return false;
+      }
+    }
+
+    function generatePreview() {
+      const variety = document.getElementById("variety").value;
+      const dateVal = document.getElementById("date").value;
+      const timeVal = document.getElementById("time").value;
+      const lotRaw = document.getElementById("lot").value.trim();
+      const tempRaw = document.getElementById("temperature").value;
+      const moistRaw = document.getElementById("moisture").value;
+
+      if (!dateVal || !timeVal) {
+        showToast("Please enter Date and Time");
+        return;
+      }
+      if (!lotRaw) {
+        showToast("Please enter Lot Number");
+        return;
+      }
+      if (tempRaw === "" || moistRaw === "") {
+        showToast("Please enter Temperature and Moisture");
+        return;
+      }
+
+      let temp = parseFloat(tempRaw);
+      let moist = parseFloat(moistRaw);
+
+      if (isNaN(temp) || isNaN(moist)) {
+        showToast("Temperature and Moisture must be numbers");
+        return;
+      }
+
+      if (temp < -50 || temp > 100 || moist < 0 || moist > 100) {
+        showToast("Enter valid Temperature and Moisture values");
+        return;
+      }
+
+      const lot = normalizeLotInput(lotRaw);
+
+      const [year, month, day] = dateVal.split("-").map(Number);
+      const timeParts = timeVal.split(":");
+      const hours = parseInt(timeParts[0]) || 0;
+      const minutes = parseInt(timeParts[1]) || 0;
+      const seconds = parseInt(timeParts[2]) || 0;
+
+      let dt = new Date(year, month - 1, day, hours, minutes, seconds);
+      const randomSeconds = Math.floor(Math.random() * (135 - 105 + 1)) + 105;
+      dt = new Date(dt.getTime() + randomSeconds * 1000);
+
+      const tempIncrease = 0.047 + Math.random() * (0.055 - 0.047);
+      temp = Math.round((temp + tempIncrease) * 10) / 10;
+
+      document.getElementById("time").value =
+        pad(dt.getHours()) + ":" + pad(dt.getMinutes()) + ":" + pad(dt.getSeconds());
+      document.getElementById("temperature").value = temp.toFixed(1);
+
+      const dateStr = pad(dt.getDate()) + "-" + pad(dt.getMonth() + 1) + "-" + String(dt.getFullYear()).slice(-2);
+      const timeStr = pad(dt.getHours()) + ":" + pad(dt.getMinutes()) + ":" + pad(dt.getSeconds());
+
+      let commodity = "", code = "";
+      switch (variety) {
+        case "RiceGrA":      commodity = "RICE-LGrn";   code = "009"; break;
+        case "RiceGrCommon": commodity = "RICE-SGrn";   code = "010"; break;
+        case "Parboiled":    commodity = "RICE-PBOILED"; code = "011"; break;
+        case "Wheat":        commodity = "WHEAT";       code = "013"; break;
+        case "PaddyL":       commodity = "PADDY-LGrn";  code = "006"; break;
+        case "PaddyS":       commodity = "PADDY-SGrn";  code = "008"; break;
+        default:             commodity = "UNKNOWN";     code = "000";
+      }
+
+      const tempText = temp.toFixed(1);
+      const moistText = moist.toFixed(1);
+      const rawText = buildSlipText({ dateStr, timeStr, lot, commodity, code, temp: tempText, moist: moistText });
+
+      slipCounter += 1;
+      const slip = {
+        slip_no: slipCounter,
+        lot_number: lot,
+        variety: variety,
+        commodity: commodity,
+        code: code,
+        date: dateStr,
+        time: timeStr,
+        temperature: tempText,
+        moisture: moistText,
+        raw_text: rawText,
+        timestamp: new Date().toISOString()
+      };
+
+      allSlips.push(slip);
+      saveSlipsToStorage();
+
+      const box = document.getElementById("previewBox");
+      if (box.textContent.includes("Generated slips will appear")) {
+        box.textContent = "";
+      }
+
+      box.textContent += rawText + "\n----------------------------------------\n";
+      box.scrollTop = box.scrollHeight;
+
+      updateSlipCount();
+      showToast("Slip generated");
+    }
+
+    function updateSlipCount() {
+      const el = document.getElementById("slipCount");
+      el.textContent = allSlips.length === 0
+        ? "No slips generated yet"
+        : `${allSlips.length} slip${allSlips.length > 1 ? "s" : ""} ready`;
+    }
+
+    function clearAll() {
+      if (allSlips.length > 0 && !confirm("Clear all generated slips?")) return;
+      allSlips = [];
+      slipCounter = 0;
+      document.getElementById("previewBox").textContent = "Generated slips will appear here...";
+      updateSlipCount();
+      saveSlipsToStorage();
+      showToast("Cleared");
+    }
+
+    function deleteLastSlip() {
+      if (allSlips.length === 0) {
+        showToast("No slips to delete");
+        return;
+      }
+
+      allSlips.pop();
+      slipCounter = Math.max(0, allSlips.length);
+
+      const box = document.getElementById("previewBox");
+      box.textContent = allSlips.length === 0 ? "Generated slips will appear here..." : "";
+
+      allSlips.forEach(s => {
+        box.textContent += (s.raw_text || buildSlipText({
+          dateStr: s.date,
+          timeStr: s.time,
+          lot: s.lot_number || "000000",
+          commodity: s.commodity || "",
+          code: s.code || "",
+          temp: s.temperature || "0.0",
+          moist: s.moisture || "0.0"
+        })) + "\n----------------------------------------\n";
+      });
+
+      saveSlipsToStorage();
+      updateSlipCount();
+      showToast("Last slip deleted");
+    }
+
+    function copyLatestSlip() {
+      if (allSlips.length === 0) {
+        showToast("No slips to copy");
+        return;
+      }
+
+      const latest = allSlips[allSlips.length - 1];
+      const text = latest.raw_text || "";
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          showToast("Slip copied");
+        }).catch(() => {
+          fallbackCopy(text);
+        });
+      } else {
+        fallbackCopy(text);
+      }
+    }
+
+    function fallbackCopy(text) {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      showToast("Slip copied");
+    }
+
+    function exportExcel() {
+      if (allSlips.length === 0) {
+        showToast("No slips to save");
+        return;
+      }
+
+      const wsData = [
+        ["Lot Number", "Variety", "Commodity", "Code", "Date", "Time", "Temperature (°C)", "Moisture (%)", "Generated At"]
+      ];
+
+      allSlips.forEach(s => {
+        wsData.push([
+          s.lot_number, s.variety, s.commodity, s.code,
+          s.date, s.time, s.temperature, s.moisture, s.timestamp
+        ]);
+      });
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+      ws["!cols"] = [
+        { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 8 },
+        { wch: 12 }, { wch: 12 }, { wch: 16 }, { wch: 14 }, { wch: 24 }
+      ];
+
+      XLSX.utils.book_append_sheet(wb, ws, "Moisture Slips");
+
+      const rawData = [["Raw Print Content"]];
+      allSlips.forEach(s => {
+        rawData.push([`=== SLIP ===\n${s.raw_text}`]);
+      });
+      const ws2 = XLSX.utils.aoa_to_sheet(rawData);
+      ws2["!cols"] = [{ wch: 60 }];
+      XLSX.utils.book_append_sheet(wb, ws2, "Raw Print Text");
+
+      const fileName = `Moisture_Slips_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+      showToast("Excel file downloaded");
+    }
+
+    function exportJSON() {
+      if (allSlips.length === 0) {
+        showToast("No slips to save");
+        return;
+      }
+
+      const blob = new Blob([JSON.stringify(allSlips, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Moisture_Slips_${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast("JSON file downloaded");
+    }
+
+    function loadFile(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      const name = file.name.toLowerCase();
+
+      if (name.endsWith(".json")) {
+        reader.onload = function(e) {
+          try {
+            const data = JSON.parse(e.target.result);
+            const slips = Array.isArray(data) ? data : [data];
+            importSlips(slips);
+          } catch (err) {
+            showToast("Invalid JSON file");
+          }
+        };
+        reader.readAsText(file);
+      } else if (name.endsWith(".xlsx") || name.endsWith(".xls") || name.endsWith(".csv")) {
+        reader.onload = function(e) {
+          try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: "array" });
+            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+
+            const slips = [];
+            for (let i = 1; i < rows.length; i++) {
+              const r = rows[i];
+              if (!r || !r[1]) continue;
+              slips.push({
+                slip_no: Number(r[0]) || i,
+                lot_number: String(r[1] || ""),
+                variety: r[2] || "RiceGrA",
+                commodity: r[3] || "",
+                code: r[4] || "",
+                date: r[5] || "",
+                time: r[6] || "",
+                temperature: String(r[7] || "0"),
+                moisture: String(r[8] || "0"),
+                raw_text: "",
+                timestamp: r[9] || new Date().toISOString()
+              });
+            }
+
+            importSlips(slips);
+          } catch (err) {
+            showToast("Failed to read Excel file");
+            console.error(err);
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      } else {
+        showToast("Unsupported file type");
+      }
+
+      event.target.value = "";
+    }
+
+    function importSlips(slips) {
+      if (!slips.length) {
+        showToast("No valid slips found");
+        return;
+      }
+
+      slips.forEach(s => {
+        if (!s.lot_number && s.lot) {
+          s.lot_number = s.lot;
+        }
+
+        const lot = normalizeLotInput(s.lot_number || "000000");
+        const date = s.date || "";
+        const time = s.time || "";
+        const commodity = s.commodity || s.variety || "";
+        const code = s.code || "";
+        const temp = s.temperature != null ? String(s.temperature) : "0.0";
+        const moist = s.moisture != null ? String(s.moisture) : "0.0";
+
+        if (!s.raw_text) {
+          s.raw_text = buildSlipText({
+            dateStr: date,
+            timeStr: time,
+            lot: lot,
+            commodity,
+            code,
+            temp,
+            moist
+          });
+        }
+      });
+
+      allSlips = allSlips.concat(slips);
+      if (allSlips.length > 0) {
+        slipCounter = Math.max(slipCounter, ...allSlips.map(s => Number(s.slip_no) || 0));
+      }
+
+      const box = document.getElementById("previewBox");
+      box.textContent = "";
+      allSlips.forEach(s => {
+        box.textContent += (s.raw_text || "") + "\n----------------------------------------\n";
+      });
+      box.scrollTop = box.scrollHeight;
+
+      saveSlipsToStorage();
+      updateSlipCount();
+      showToast(`Loaded ${slips.length} slip(s)`);
+    }
+
+    function init() {
+      setDefaultDateTime();
+      loadSlipsFromStorage();
+      updateSlipCount();
+    }
+
+    init();
+  </script>
+</body>
+</html>
