@@ -4,8 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="theme-color" content="#1C9B93" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Moisture Slip Printer - Neeraj</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
@@ -31,7 +29,7 @@
     .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:#333; color:white; padding:12px 20px; border-radius:30px; font-size:.9rem; z-index:999; opacity:0; transition:opacity .3s; pointer-events:none; max-width:90%; text-align:center; } .toast.show { opacity:1; }
     .hidden { display:none!important; }
     @media(max-width:480px) { header h1 { font-size:1.1rem; } .card { padding:14px; } button { min-width:100%; } .btn-group { flex-direction:column; } .row { flex-direction:column; gap:0; } }
-    @media print { body * { visibility:hidden; } .preview-box,.preview-box * { visibility:visible; } .preview-box { position:absolute; left:0; top:0; width:100%; background:white; color:black; border:none; max-height:none; } header,.license-bar,.card:not(.preview-card),.btn-group,.info-note { display:none!important; } }
+    @media print { body * { visibility:hidden; } .preview-box,.preview-box * { visibility:visible; } .preview-box { position:absolute; left:0; top:0; width:100%; background:white; color:black; border:none; max-height:none; } header,.license-bar,.card:not(.preview-card),.btn-group,.info-note,.slip-count { display:none!important; } }
   </style>
 </head>
 <body>
@@ -52,7 +50,7 @@
     </div>
     <div class="card preview-card">
       <h2>🖨 Preview</h2><div class="slip-count" id="slipCount">No slips generated yet</div><div class="preview-box" id="previewBox">Generated slips will appear here...</div>
-      <div class="btn-group" style="margin-top:12px"><button class="btn-primary" onclick="window.print()">Print</button><button class="btn-success" onclick="exportExcel()">Save Excel</button><button class="btn-secondary" onclick="exportJSON()">Save JSON</button><button class="btn-secondary" onclick="document.getElementById('fileInput').click()">Load File</button><button class="btn-danger" onclick="deleteLastSlip()">Delete Last</button><button class="btn-secondary" onclick="copyLatestSlip()">Copy Slip</button></div>
+      <div class="btn-group" style="margin-top:12px"><button class="btn-primary" onclick="window.print()">Print</button><button class="btn-secondary" onclick="countSlips()">Count Slips</button><button class="btn-success" onclick="exportExcel()">Save Excel</button><button class="btn-secondary" onclick="exportJSON()">Save JSON</button><button class="btn-secondary" onclick="document.getElementById('fileInput').click()">Load File</button><button class="btn-danger" onclick="deleteLastSlip()">Delete Last</button><button class="btn-secondary" onclick="copyLatestSlip()">Copy Slip</button></div>
       <input type="file" id="fileInput" accept=".xlsx,.xls,.json,.csv" class="hidden" onchange="loadFile(event)" />
     </div>
   </div>
@@ -61,105 +59,47 @@
     const STORAGE_KEY = "moisture_slip_printer_v1";
     let allSlips = [];
     let slipCounter = 0;
-
-    function showToast(msg, duration = 2200) { const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),duration); }
+    function showToast(msg,duration=2200) { const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),duration); }
     function pad(n,len=2) { return String(n).padStart(len,"0"); }
-    function normalizeLotInput(value) { const digits=String(value).replace(/\D/g,""); return digits.length ? pad(digits,6).slice(-6) : "000000"; }
+    function normalizeLotInput(value) { const digits=String(value).replace(/\D/g,""); return digits.length?pad(digits,6).slice(-6):"000000"; }
     function formatLocalDateInput(date) { return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}`; }
-    function formatMeasurement(value) { const n=Number(String(value??"").trim()); return Number.isFinite(n) ? n.toFixed(1) : "0.0"; }
-    function setDefaultDateTime() { const now=new Date(); document.getElementById("date").value=formatLocalDateInput(now); document.getElementById("time").value=`${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`; }
+    function formatMeasurement(value) { const text=String(value??"").trim(); if(!text)return "0.0"; const n=Number(text.replace(/,/g,"")); return Number.isFinite(n)?n.toFixed(1):text; }
+    function setDefaultDateTime() { const n=new Date(); document.getElementById("date").value=formatLocalDateInput(n); document.getElementById("time").value=`${pad(n.getHours())}:${pad(n.getMinutes())}:${pad(n.getSeconds())}`; }
     function buildSlipText({dateStr,timeStr,lot,commodity,code,temp,moist}) { return `<DW>  INDOSAW</DW>\n\n\nDATE      : ${dateStr}\nTIME      : ${timeStr}\n        A#:${lot}\nCOMMODITY : ${commodity}\nCODE NUMBER= ${code}\nTEMP(Deg C)= ${temp}\nMOISTURE % = ${moist}\n<LINE>\n<LINE>\n`; }
+    function slipText(s) { return s.raw_text||buildSlipText({dateStr:s.date,timeStr:s.time,lot:s.lot_number||"000000",commodity:s.commodity||"",code:s.code||"",temp:s.temperature||"0.0",moist:s.moisture||"0.0"}); }
     function saveSlipsToStorage() { try { localStorage.setItem(STORAGE_KEY,JSON.stringify(allSlips)); } catch(e) { console.error("Storage failed",e); } }
-    function renderSlips() { const box=document.getElementById("previewBox"); if(!allSlips.length) { box.textContent="Generated slips will appear here..."; return; } box.textContent=allSlips.map(s=>`${s.raw_text || buildSlipText({dateStr:s.date,timeStr:s.time,lot:s.lot_number||"000000",commodity:s.commodity||"",code:s.code||"",temp:s.temperature||"0.0",moist:s.moisture||"0.0"})}\n----------------------------------------\n`).join(""); box.scrollTop=box.scrollHeight; }
-    function loadSlipsFromStorage() { try { const saved=localStorage.getItem(STORAGE_KEY); if(!saved) return; const parsed=JSON.parse(saved); if(!Array.isArray(parsed)) return; allSlips=parsed.map((s,i)=>({...s,slip_no:Number(s.slip_no)||i+1})); slipCounter=Math.max(0,...allSlips.map(s=>Number(s.slip_no)||0)); renderSlips(); } catch(e) { console.error("Load failed",e); } }
+    function renderSlips() { const box=document.getElementById("previewBox"); box.textContent=allSlips.length?allSlips.map(slipText).join("\n"):"Generated slips will appear here..."; box.scrollTop=box.scrollHeight; }
+    function updateSlipCount() { document.getElementById("slipCount").textContent=allSlips.length?`${allSlips.length} slip${allSlips.length===1?"":"s"} ready`:"No slips generated yet"; }
+    function countSlips() { const count=allSlips.length; document.getElementById("slipCount").textContent=`Total slips on screen: ${count}`; showToast(`Total slips: ${count}`); }
+    function loadSlipsFromStorage() { try { const saved=localStorage.getItem(STORAGE_KEY); if(!saved)return; const data=JSON.parse(saved); if(!Array.isArray(data))return; allSlips=data.map((s,i)=>({...s,slip_no:Number(s.slip_no)||i+1})); slipCounter=Math.max(0,...allSlips.map(s=>Number(s.slip_no)||0)); renderSlips(); } catch(e) { console.error("Load failed",e); } }
     function generatePreview() {
-      const variety=document.getElementById("variety").value, dateVal=document.getElementById("date").value, timeVal=document.getElementById("time").value.trim(), lotRaw=document.getElementById("lot").value.trim(), tempRaw=document.getElementById("temperature").value, moistRaw=document.getElementById("moisture").value;
-      if(!dateVal||!timeVal) return showToast("Please enter Date and Time");
-      if(!/^([01]\d|2[0-3]):[0-5]\d:[0-5]\d$/.test(timeVal)) return showToast("Enter time as 24-hour HH:MM:SS");
-      if(!lotRaw) return showToast("Please enter Lot Number");
-      if(tempRaw===""||moistRaw==="") return showToast("Please enter Temperature and Moisture");
-      let temp=parseFloat(tempRaw); const moist=parseFloat(moistRaw);
-      if(!Number.isFinite(temp)||!Number.isFinite(moist)) return showToast("Temperature and Moisture must be numbers");
-      if(temp < -50||temp > 100||moist < 0||moist > 100) return showToast("Enter valid Temperature and Moisture values");
-      const lot=normalizeLotInput(lotRaw), [year,month,day]=dateVal.split("-").map(Number), [hours,minutes,seconds]=timeVal.split(":").map(Number);
-      let dt=new Date(year,month-1,day,hours,minutes,seconds); dt=new Date(dt.getTime()+(Math.floor(Math.random()*31)+105)*1000);
-      temp=Math.round((temp+0.047+Math.random()*(0.055-0.047))*10)/10;
+      const variety=document.getElementById("variety").value,dateVal=document.getElementById("date").value,timeVal=document.getElementById("time").value.trim(),lotRaw=document.getElementById("lot").value.trim(),tempRaw=document.getElementById("temperature").value,moistRaw=document.getElementById("moisture").value;
+      if(!dateVal||!timeVal)return showToast("Please enter Date and Time"); if(!/^([01]\d|2[0-3]):[0-5]\d:[0-5]\d$/.test(timeVal))return showToast("Enter time as 24-hour HH:MM:SS"); if(!lotRaw)return showToast("Please enter Lot Number"); if(tempRaw===""||moistRaw==="")return showToast("Please enter Temperature and Moisture");
+      let temp=parseFloat(tempRaw); const moist=parseFloat(moistRaw); if(!Number.isFinite(temp)||!Number.isFinite(moist))return showToast("Temperature and Moisture must be numbers"); if(temp < -50||temp>100||moist<0||moist>100)return showToast("Enter valid Temperature and Moisture values");
+      const lot=normalizeLotInput(lotRaw),[year,month,day]=dateVal.split("-").map(Number),[hours,minutes,seconds]=timeVal.split(":").map(Number); let dt=new Date(year,month-1,day,hours,minutes,seconds); dt=new Date(dt.getTime()+(Math.floor(Math.random()*31)+105)*1000); temp=Math.round((temp+0.047+Math.random()*(0.055-0.047))*10)/10;
       document.getElementById("time").value=`${pad(dt.getHours())}:${pad(dt.getMinutes())}:${pad(dt.getSeconds())}`; document.getElementById("temperature").value=temp.toFixed(1);
-      const dateStr=`${pad(dt.getDate())}-${pad(dt.getMonth()+1)}-${String(dt.getFullYear()).slice(-2)}`, timeStr=`${pad(dt.getHours())}:${pad(dt.getMinutes())}:${pad(dt.getSeconds())}`;
-      const items={RiceGrA:["RICE-LGrn","009"],RiceGrCommon:["RICE-SGrn","010"],Parboiled:["RICE-PBOILED","011"],Wheat:["WHEAT","013"],PaddyL:["PADDY-LGrn","006"],PaddyS:["PADDY-SGrn","008"]};
-      const [commodity,code]=items[variety]||["UNKNOWN","000"], tempText=temp.toFixed(1), moistText=moist.toFixed(1), rawText=buildSlipText({dateStr,timeStr,lot,commodity,code,temp:tempText,moist:moistText});
-      allSlips.push({slip_no:++slipCounter,lot_number:lot,variety,commodity,code,date:dateStr,time:timeStr,temperature:tempText,moisture:moistText,raw_text:rawText,timestamp:new Date().toISOString()});
-      renderSlips(); saveSlipsToStorage(); updateSlipCount(); showToast("Slip generated");
+      const dateStr=`${pad(dt.getDate())}-${pad(dt.getMonth()+1)}-${String(dt.getFullYear()).slice(-2)}`,timeStr=`${pad(dt.getHours())}:${pad(dt.getMinutes())}:${pad(dt.getSeconds())}`,items={RiceGrA:["RICE-LGrn","009"],RiceGrCommon:["RICE-SGrn","010"],Parboiled:["RICE-PBOILED","011"],Wheat:["WHEAT","013"],PaddyL:["PADDY-LGrn","006"],PaddyS:["PADDY-SGrn","008"]},[commodity,code]=items[variety]||["UNKNOWN","000"],tempText=temp.toFixed(1),moistText=moist.toFixed(1),rawText=buildSlipText({dateStr,timeStr,lot,commodity,code,temp:tempText,moist:moistText});
+      allSlips.push({slip_no:++slipCounter,lot_number:lot,variety,commodity,code,date:dateStr,time:timeStr,temperature:tempText,moisture:moistText,raw_text:rawText,timestamp:new Date().toISOString()}); renderSlips(); saveSlipsToStorage(); updateSlipCount(); showToast("Slip generated");
     }
-    function updateSlipCount() { document.getElementById("slipCount").textContent=allSlips.length?`${allSlips.length} slip${allSlips.length>1?"s":""} ready`:"No slips generated yet"; }
-    function clearAll() { if(allSlips.length&&!confirm("Clear all generated slips?")) return; allSlips=[]; slipCounter=0; renderSlips(); updateSlipCount(); saveSlipsToStorage(); showToast("Cleared"); }
-    function deleteLastSlip() { if(!allSlips.length) return showToast("No slips to delete"); allSlips.pop(); slipCounter=Math.max(0,...allSlips.map(s=>Number(s.slip_no)||0)); renderSlips(); updateSlipCount(); saveSlipsToStorage(); showToast("Last slip deleted"); }
-    function copyLatestSlip() { if(!allSlips.length) return showToast("No slips to copy"); const text=allSlips[allSlips.length-1].raw_text||""; if(navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(()=>showToast("Slip copied")).catch(()=>fallbackCopy(text)); else fallbackCopy(text); }
+    function clearAll() { if(allSlips.length&&!confirm("Clear all generated slips?"))return; allSlips=[]; slipCounter=0; renderSlips(); updateSlipCount(); saveSlipsToStorage(); showToast("Cleared"); }
+    function deleteLastSlip() { if(!allSlips.length)return showToast("No slips to delete"); allSlips.pop(); slipCounter=Math.max(0,...allSlips.map(s=>Number(s.slip_no)||0)); renderSlips(); updateSlipCount(); saveSlipsToStorage(); showToast("Last slip deleted"); }
+    function copyLatestSlip() { if(!allSlips.length)return showToast("No slips to copy"); const text=slipText(allSlips[allSlips.length-1]); if(navigator.clipboard?.writeText)navigator.clipboard.writeText(text).then(()=>showToast("Slip copied")).catch(()=>fallbackCopy(text)); else fallbackCopy(text); }
     function fallbackCopy(text) { const ta=document.createElement("textarea"); ta.value=text; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove(); showToast("Slip copied"); }
-    function exportExcel() {
-      if(!allSlips.length) return showToast("No slips to save");
-      const rows=[["Lot Number","Variety","Commodity","Code","Date (DD-MM-YY)","Time (24-hour)","Temperature (°C)","Moisture (%)","Generated At"],...allSlips.map(s=>[s.lot_number,s.variety,s.commodity,s.code,formatSlipDate(s.date),excelTime(s.time),formatMeasurement(s.temperature),formatMeasurement(s.moisture),s.timestamp])];
-      const wb=XLSX.utils.book_new(), ws=XLSX.utils.aoa_to_sheet(rows); ws["!cols"]=[{wch:12},{wch:14},{wch:14},{wch:8},{wch:18},{wch:16},{wch:16},{wch:14},{wch:24}]; XLSX.utils.book_append_sheet(wb,ws,"Moisture Slips");
-      const raw=XLSX.utils.aoa_to_sheet([["Raw Print Content"],...allSlips.map(s=>[`=== SLIP ===\n${s.raw_text}`])]); raw["!cols"]=[{wch:60}]; XLSX.utils.book_append_sheet(wb,raw,"Raw Print Text"); XLSX.writeFile(wb,`Moisture_Slips_${formatLocalDateInput(new Date())}.xlsx`); showToast("Excel file downloaded");
-    }
-    function exportJSON() { if(!allSlips.length) return showToast("No slips to save"); const blob=new Blob([JSON.stringify(allSlips,null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a"); a.href=url; a.download=`Moisture_Slips_${formatLocalDateInput(new Date())}.json`; a.click(); URL.revokeObjectURL(url); showToast("JSON file downloaded"); }
-
-    function normalizeHeader(value) { return String(value??"").toLowerCase().replace(/[^a-z0-9]/g,""); }
-    function findColumn(headers,aliases) { return headers.findIndex(h=>aliases.includes(normalizeHeader(h))); }
-    function formatSlipDate(value) {
-      if(value instanceof Date&&!Number.isNaN(value.getTime())) return `${pad(value.getDate())}-${pad(value.getMonth()+1)}-${String(value.getFullYear()).slice(-2)}`;
-      if(typeof value==="number"&&value>0) { const d=XLSX.SSF.parse_date_code(value); if(d) return `${pad(d.d)}-${pad(d.m)}-${String(d.y).slice(-2)}`; }
-      const text=String(value??"").trim();
-      // Text dates are always interpreted strictly as DD-MM-YY or DD/MM/YYYY (never MM-DD).
-      const m=text.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2}|\d{4})$/);
-      if(!m) return text;
-      const day=Number(m[1]), month=Number(m[2]); let year=Number(m[3]);
-      if(day<1||day>31||month<1||month>12) return text;
-      if(m[3].length===2) year += year>=70 ? 1900 : 2000;
-      return `${pad(day)}-${pad(month)}-${String(year).slice(-2)}`;
-    }
-    function formatMeasurement(value) { const text=String(value??"").trim(); if(!text) return "0.0"; const n=Number(text.replace(/,/g,"")); return Number.isFinite(n)?n.toFixed(1):text; }
-    function excelTime(value) {
-      if(value instanceof Date&&!Number.isNaN(value.getTime())) return `${pad(value.getHours())}:${pad(value.getMinutes())}:${pad(value.getSeconds())}`;
-      if(typeof value==="number"&&value>=0&&value<1) { const total=Math.round(value*86400); return `${pad(Math.floor(total/3600)%24)}:${pad(Math.floor(total/60)%60)}:${pad(total%60)}`; }
-      const text=String(value??"").trim(), m=text.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?$/i); if(!m) return text;
-      let h=Number(m[1]); const suffix=(m[4]||"").toUpperCase(); if(suffix) { if(h<1||h>12) return text; h=h%12+(suffix==="PM"?12:0); }
-      if(h>23||Number(m[2])>59||Number(m[3]||0)>59) return text; return `${pad(h)}:${m[2]}:${m[3]||"00"}`;
-    }
+    function formatSlipDate(value) { if(value instanceof Date&&!Number.isNaN(value.getTime()))return `${pad(value.getDate())}-${pad(value.getMonth()+1)}-${String(value.getFullYear()).slice(-2)}`; if(typeof value==="number"&&value>0){const d=XLSX.SSF.parse_date_code(value);if(d)return `${pad(d.d)}-${pad(d.m)}-${String(d.y).slice(-2)}`;} const m=String(value??"").trim().match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2}|\d{4})$/); if(!m)return String(value??"").trim(); const d=Number(m[1]),mo=Number(m[2]); let y=Number(m[3]); if(d<1||d>31||mo<1||mo>12)return String(value).trim(); if(m[3].length===2)y+=y>=70?1900:2000; return `${pad(d)}-${pad(mo)}-${String(y).slice(-2)}`; }
+    function excelTime(value) { if(value instanceof Date&&!Number.isNaN(value.getTime()))return `${pad(value.getHours())}:${pad(value.getMinutes())}:${pad(value.getSeconds())}`; if(typeof value==="number"&&value>=0&&value<1){const n=Math.round(value*86400);return `${pad(Math.floor(n/3600)%24)}:${pad(Math.floor(n/60)%60)}:${pad(n%60)}`;} const m=String(value??"").trim().match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?$/i); if(!m)return String(value??"").trim(); let h=Number(m[1]); const ap=(m[4]||"").toUpperCase(); if(ap){if(h<1||h>12)return String(value);h=h%12+(ap==="PM"?12:0);} if(h>23||Number(m[2])>59||Number(m[3]||0)>59)return String(value);return `${pad(h)}:${m[2]}:${m[3]||"00"}`; }
+    function exportExcel() { if(!allSlips.length)return showToast("No slips to save"); const rows=[["Lot Number","Variety","Commodity","Code","Date (DD-MM-YY)","Time (24-hour)","Temperature (°C)","Moisture (%)","Generated At"],...allSlips.map(s=>[s.lot_number,s.variety,s.commodity,s.code,formatSlipDate(s.date),excelTime(s.time),formatMeasurement(s.temperature),formatMeasurement(s.moisture),s.timestamp])],wb=XLSX.utils.book_new(),ws=XLSX.utils.aoa_to_sheet(rows); ws["!cols"]=[{wch:12},{wch:14},{wch:14},{wch:8},{wch:18},{wch:16},{wch:16},{wch:14},{wch:24}]; XLSX.utils.book_append_sheet(wb,ws,"Moisture Slips"); const raw=XLSX.utils.aoa_to_sheet([["Raw Print Content"],...allSlips.map(s=>[slipText(s)])]); raw["!cols"]=[{wch:60}]; XLSX.utils.book_append_sheet(wb,raw,"Raw Print Text"); XLSX.writeFile(wb,`Moisture_Slips_${formatLocalDateInput(new Date())}.xlsx`); showToast("Excel file downloaded"); }
+    function exportJSON() { if(!allSlips.length)return showToast("No slips to save"); const blob=new Blob([JSON.stringify(allSlips,null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a"); a.href=url; a.download=`Moisture_Slips_${formatLocalDateInput(new Date())}.json`; a.click(); URL.revokeObjectURL(url); showToast("JSON file downloaded"); }
+    function normHeader(v) { return String(v??"").toLowerCase().replace(/[^a-z0-9]/g,""); }
+    function colIndex(headers,aliases) { return headers.findIndex(h=>aliases.includes(normHeader(h))); }
     function importExcelRows(rows) {
-      if(!rows.length) return [];
-      const headers=rows[0]||[], columns={lot:findColumn(headers,["lotnumber","lot","lotno","lotnum"]),variety:findColumn(headers,["variety"]),commodity:findColumn(headers,["commodity"]),code:findColumn(headers,["code","codenumber"]),date:findColumn(headers,["date","dateddmmyy"]),time:findColumn(headers,["time"]),temperature:findColumn(headers,["temperature","temperaturec","temp","tempdegc"]),moisture:findColumn(headers,["moisture","moisturepercent"]),timestamp:findColumn(headers,["generatedat","timestamp"])};
-      const hasRecognizedHeaders=Object.values(columns).some(index=>index>=0), slips=[];
-      if(hasRecognizedHeaders) {
-        if(columns.lot<0) throw new Error("Could not find a Lot Number column in the first row.");
-        for(let i=1;i<rows.length;i++) { const r=rows[i]||[],lotValue=r[columns.lot]; if(lotValue===undefined||String(lotValue).trim()==="") continue; const get=key=>columns[key]>=0?r[columns[key]]:""; const variety=String(get("variety")||"RiceGrA").trim();
-          slips.push({slip_no:slips.length+1,lot_number:String(lotValue).trim(),variety,commodity:String(get("commodity")||"").trim(),code:String(get("code")||"").trim(),date:formatSlipDate(get("date")),time:excelTime(get("time")),temperature:formatMeasurement(get("temperature")),moisture:formatMeasurement(get("moisture")),raw_text:"",timestamp:get("timestamp")||new Date().toISOString()});
-        }
-        return slips;
-      }
-      // Compatibility with older generated workbooks whose first column was Slip No.
-      for(let i=1;i<rows.length;i++) { const r=rows[i]||[]; if(r.length<2||String(r[1]??"").trim()==="") continue; slips.push({slip_no:i,lot_number:String(r[1]),variety:r[2]||"RiceGrA",commodity:r[3]||"",code:r[4]||"",date:formatSlipDate(r[5]),time:excelTime(r[6]),temperature:formatMeasurement(r[7]),moisture:formatMeasurement(r[8]),raw_text:"",timestamp:r[9]||new Date().toISOString()}); }
-      return slips;
+      if(!rows.length)return []; const h=rows[0]||[],c={lot:colIndex(h,["lotnumber","lot","lotno","lotnum"]),variety:colIndex(h,["variety"]),commodity:colIndex(h,["commodity"]),code:colIndex(h,["code","codenumber"]),date:colIndex(h,["date","dateddmmyy"]),time:colIndex(h,["time"]),temp:colIndex(h,["temperature","temperaturec","temp","tempdegc"]),moist:colIndex(h,["moisture","moisturepercent"]),timestamp:colIndex(h,["generatedat","timestamp"])}; const mapped=Object.values(c).some(i=>i>=0),out=[];
+      if(mapped){if(c.lot<0)throw new Error("Could not find a Lot Number column in the first row."); for(let i=1;i<rows.length;i++){const r=rows[i]||[],lot=r[c.lot];if(lot===undefined||String(lot).trim()==="")continue;const get=k=>c[k]>=0?r[c[k]]:"";out.push({slip_no:out.length+1,lot_number:String(lot).trim(),variety:String(get("variety")||"RiceGrA").trim(),commodity:String(get("commodity")||"").trim(),code:String(get("code")||"").trim(),date:formatSlipDate(get("date")),time:excelTime(get("time")),temperature:formatMeasurement(get("temp")),moisture:formatMeasurement(get("moist")),raw_text:"",timestamp:get("timestamp")||new Date().toISOString()});}return out;}
+      // Older workbook layout: Slip No, Lot Number, Variety, Commodity, Code, Date, Time, Temperature, Moisture, Generated At.
+      for(let i=1;i<rows.length;i++){const r=rows[i]||[];if(r.length<2||String(r[1]??"").trim()==="")continue;out.push({slip_no:i,lot_number:String(r[1]),variety:r[2]||"RiceGrA",commodity:r[3]||"",code:r[4]||"",date:formatSlipDate(r[5]),time:excelTime(r[6]),temperature:formatMeasurement(r[7]),moisture:formatMeasurement(r[8]),raw_text:"",timestamp:r[9]||new Date().toISOString()});}return out;
     }
-    function loadFile(event) {
-      const file=event.target.files[0]; if(!file) return; const name=file.name.toLowerCase(),reader=new FileReader();
-      if(name.endsWith(".json")) { reader.onload=e=>{ try { const data=JSON.parse(e.target.result),slips=Array.isArray(data)?data:[data]; importSlips(slips); } catch(err) { showToast("Invalid JSON file"); } }; reader.readAsText(file); }
-      else if(name.endsWith(".xlsx")||name.endsWith(".xls")||name.endsWith(".csv")) { reader.onload=e=>{ try { const wb=XLSX.read(new Uint8Array(e.target.result),{type:"array",cellDates:true}),sheet=wb.Sheets[wb.SheetNames[0]],rows=XLSX.utils.sheet_to_json(sheet,{header:1,defval:"",raw:true}); importSlips(importExcelRows(rows)); } catch(err) { console.error(err); showToast(err.message||"Failed to read Excel file"); } }; reader.readAsArrayBuffer(file); }
-      else showToast("Unsupported file type"); event.target.value="";
-    }
-    function importSlips(slips) {
-      if(!Array.isArray(slips)||!slips.length) return showToast("No valid slips found");
-      const imported=slips.filter(s=>s&&typeof s==="object"&&String(s.lot_number??s.lot??"").trim()!=="").map(s=>{
-        const lot=normalizeLotInput(s.lot_number??s.lot),variety=s.variety||"RiceGrA"; let commodity=s.commodity||"",code=s.code||"";
-        if(!commodity||!code) { const map={RiceGrA:["RICE-LGrn","009"],RiceGrCommon:["RICE-SGrn","010"],Parboiled:["RICE-PBOILED","011"],Wheat:["WHEAT","013"],PaddyL:["PADDY-LGrn","006"],PaddyS:["PADDY-SGrn","008"]},pair=map[variety]||[commodity,code]; commodity=commodity||pair[0]; code=code||pair[1]; }
-        const s2={...s,lot_number:lot,variety,commodity,code,date:formatSlipDate(s.date),time:excelTime(s.time),temperature:formatMeasurement(s.temperature),moisture:formatMeasurement(s.moisture),timestamp:s.timestamp||new Date().toISOString()};
-        if(!s2.raw_text) s2.raw_text=buildSlipText({dateStr:s2.date,timeStr:s2.time,lot,commodity,code,temp:s2.temperature,moist:s2.moisture}); return s2;
-      });
-      if(!imported.length) return showToast("No valid slips found. Check that Lot Number cells are filled.");
-      allSlips=allSlips.concat(imported); slipCounter=Math.max(0,...allSlips.map(s=>Number(s.slip_no)||0)); renderSlips(); saveSlipsToStorage(); updateSlipCount(); showToast(`Loaded ${imported.length} slip(s)`);
-    }
-    function init() { setDefaultDateTime(); loadSlipsFromStorage(); updateSlipCount(); }
-    init();
+    function loadFile(event) { const file=event.target.files[0];if(!file)return;const name=file.name.toLowerCase(),reader=new FileReader(); if(name.endsWith(".json")){reader.onload=e=>{try{const d=JSON.parse(e.target.result);importSlips(Array.isArray(d)?d:[d]);}catch(_){showToast("Invalid JSON file");}};reader.readAsText(file);} else if(name.endsWith(".xlsx")||name.endsWith(".xls")||name.endsWith(".csv")){reader.onload=e=>{try{const wb=XLSX.read(new Uint8Array(e.target.result),{type:"array",cellDates:true}),sheet=wb.Sheets[wb.SheetNames[0]],rows=XLSX.utils.sheet_to_json(sheet,{header:1,defval:"",raw:true});importSlips(importExcelRows(rows));}catch(err){console.error(err);showToast(err.message||"Failed to read Excel file");}};reader.readAsArrayBuffer(file);} else showToast("Unsupported file type");event.target.value=""; }
+    function importSlips(slips) { if(!Array.isArray(slips)||!slips.length)return showToast("No valid slips found");const map={RiceGrA:["RICE-LGrn","009"],RiceGrCommon:["RICE-SGrn","010"],Parboiled:["RICE-PBOILED","011"],Wheat:["WHEAT","013"],PaddyL:["PADDY-LGrn","006"],PaddyS:["PADDY-SGrn","008"]};const imported=slips.filter(s=>s&&typeof s==="object"&&String(s.lot_number??s.lot??"").trim()!=="").map(s=>{const lot=normalizeLotInput(s.lot_number??s.lot),variety=s.variety||"RiceGrA",pair=map[variety]||["", ""];const item={...s,lot_number:lot,variety,commodity:s.commodity||pair[0]||"",code:s.code||pair[1]||"",date:formatSlipDate(s.date),time:excelTime(s.time),temperature:formatMeasurement(s.temperature),moisture:formatMeasurement(s.moisture),timestamp:s.timestamp||new Date().toISOString()};if(!item.raw_text)item.raw_text=buildSlipText({dateStr:item.date,timeStr:item.time,lot,commodity:item.commodity,code:item.code,temp:item.temperature,moist:item.moisture});return item;});if(!imported.length)return showToast("No valid slips found. Check Lot Number cells.");allSlips=allSlips.concat(imported);slipCounter=Math.max(0,...allSlips.map(s=>Number(s.slip_no)||0));renderSlips();saveSlipsToStorage();updateSlipCount();showToast(`Loaded ${imported.length} slip(s)`); }
+    function init() { setDefaultDateTime();loadSlipsFromStorage();updateSlipCount(); } init();
   </script>
 </body>
 </html>
